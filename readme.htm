@@ -8,8 +8,8 @@
     <style type="text/css">
 
 	body, table { 
-	   font-family: Verdana, Arial, Helvetica, sans-serif, monospace;
-	   font-size: 95%;
+	    font-family: Verdana, Arial, Helvetica, sans-serif, monospace;
+	    font-size: 95%;
 	}
 
 	h1 {
@@ -19,6 +19,10 @@
 
 	h2 {
 	    font-size: 105%;
+	}
+
+	h3 {
+	    font-size: 95%;
 	}
 
 	td, th {
@@ -62,9 +66,13 @@
 <h2>Introduction</h2>
 <p>The aim of the DispHelper library is to allow C/C++ programmers to use COM objects
 in a simple, script like manner.</p>
+
 <p>If you did not download DispHelper from Sourceforge, please visit the
 <a href="http://sourceforge.net/projects/disphelper/" title="DispHelper project page at Sourceforge">
 DispHelper project page</a> to get the latest version.</p>
+
+<p>You can <a href="http://cvs.sourceforge.net/viewcvs.py/disphelper/disphelper/">browse
+the DispHelper source code and samples</a> online.</p>
 
 <h2>Basic Sample</h2>
 <pre>
@@ -389,7 +397,7 @@ IDispatch * wdDoc = NULL;
 
 <h3>Toggling Exceptions</h3>
 <pre>
-// DispHelper will show a message box when an error occurs.
+// DispHelper will show a message box when an error occurs. Useful for debugging.
 dhToggleExceptions(TRUE);
 
 // DispHelper will not show a message box when an error occurs(default).
@@ -513,17 +521,49 @@ an object multiple times.</p>
      } END_WITH(wdFont);
 </pre>
 
+<h3>Retrieving the last error text</h3>
+<pre>
+    // Dump the details of the last error to a log file
+    void LogDhError(void)
+    {
+        PDH_EXCEPTION * pException = NULL;
+        dhGetLastException(&amp;pException);
 
-<!-- 
+        if (pException)
+        {
+            WCHAR szMessage[512];
+            dhFormatException(pException, szMessage, 512, TRUE);
+            fprintf(g_hLogFile, "%S", szMessage);
+        }
+        else
+        {
+            fprintf(g_hLogFile, "No error information available.");
+        }
+    }
 
-<h2>Exceptions</h2>
-<p>DispHelper has a built in error system that shows a dialog box when an error 
-occurs. This can be turned on using dhToggleExceptions(TRUE). This system can
-make developing applications significantly simpler.</p>
+    // Sample usage
+    if (FAILED(dhCallMethod(wdApp, L".Selection.TypeText(%s)", "Hello World")))
+    {
+        LogDhError();
+        // Cleanup and exit
+    }
+</pre>
 
--->
+<h3>Releasing a COM object</h3>
+<pre>
+// Make use of the SAFE_RELEASE macro
+SAFE_RELEASE(wdApp);
+</pre>
 
-<p>[This document is a work in progress. More to follow.]</p>
+<h2>Future Directions</h2>
+<p>In the near future DispHelper will become more C++ friendly, with samples
+that use exceptions, smart pointers and the C++ standard libraries.</p>
+<p>DispHelper may also expand to allow easy hosting of ActiveX controls, if demand exists.</p>
+
+<p style="text-align:center;"><a href="http://sourceforge.net" title="Go to SourceForge.net - The open source development site">
+<img src="http://sourceforge.net/sflogo.php?group_id=111558&amp;type=3" width="125" height="37" style="border:none;" alt="Go to SourceForge.net - The open source development site" />
+</a></p>
+
 
 </body>
 </html>
