@@ -78,7 +78,7 @@ void XMLRead(void)
 
 	/* Load cd_catalog.xml from file */
 	HR_TRY( dhCreateObject(L"MSXML.DOMDocument", NULL, &xmlDoc) );
-	HR_TRY(	dhPutValue(xmlDoc, L".Async = %b", FALSE) );
+	HR_TRY( dhPutValue(xmlDoc, L".Async = %b", FALSE) );
 	HR_TRY( dhCallMethod(xmlDoc, L".Load(%S)", L"cd_catalog.xml") );
 
 	FOR_EACH(xmlNode, xmlDoc, L".documentElement.childNodes")
