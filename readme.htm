@@ -272,12 +272,12 @@ Error handling is omitted for simplicity.</p>
 10      <span class="dhfunc">dhToggleExceptions</span>(TRUE);
 11
 12      <span class="dhfunc">dhCreateObject</span>(L"MSXML2.XMLHTTP", NULL, &amp;objHTTP);
-13      <span class="dhfunc">dhCallMethod</span>(objHTTP, L".Open(%s, %s, %b)", "GET", "http://sourceforge.net, FALSE);
+13      <span class="dhfunc">dhCallMethod</span>(objHTTP, L".Open(%s, %s, %b)", "GET", "http://sourceforge.net", FALSE);
 14      <span class="dhfunc">dhCallMethod</span>(objHTTP, L".Send");
 15
 16      <span class="dhfunc">dhGetValue</span>(L"%s", &amp;szResponse, objHTTP, L".ResponseText");
 17
-18      printf("Response:\n%s\n" szResponse);
+18      printf("Response:\n%s\n", szResponse);
 19      <span class="dhfunc">dhFreeString</span>(szResponse);
 20
 21      <span class="dhfunc">SAFE_RELEASE</span>(objHTTP);
