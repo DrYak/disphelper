@@ -13,6 +13,9 @@
  * Find out more and download DispHelper at:
  * http://sourceforge.net/projects/disphelper/
  * http://disphelper.sourceforge.net/
+ *
+ * You can browse the source code and samples, including a C++ version of this sample, online at:
+ * http://cvs.sourceforge.net/viewcvs.py/disphelper/disphelper/
  */
 
 
