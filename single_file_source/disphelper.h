@@ -212,8 +212,15 @@ HRESULT dhGetExceptionOptions(PDH_EXCEPTION_OPTIONS pExceptionOptions);
 /* Functions to show an exception, format an exception into a string
  * and get a copy of the last exception */
 HRESULT dhShowException(PDH_EXCEPTION pException);
-HRESULT dhFormatException(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont);
 HRESULT dhGetLastException(PDH_EXCEPTION * pException);
+HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont);
+HRESULT dhFormatExceptionA(PDH_EXCEPTION pException, LPSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont);
+
+#ifdef UNICODE
+#define dhFormatException dhFormatExceptionW
+#else
+#define dhFormatException dhFormatExceptionA
+#endif
 
 #ifdef DISPHELPER_INTERNAL_BUILD
 

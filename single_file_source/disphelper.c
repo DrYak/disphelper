@@ -788,9 +788,9 @@ HRESULT dhEnumBegin(IEnumVARIANT ** ppEnum, IDispatch * pDisp, LPCOLESTR szMembe
 
 /* ----- convert.c ----- */
 
-static const ULONGLONG FILE_TIME_ONE_DAY           = 864000000000;
+static const LONGLONG FILE_TIME_ONE_DAY           = 864000000000;
 
-static const ULONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000;
+static const LONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000;
 
 static const ULONGLONG FILE_TIME_VARIANT_OVERFLOW  = 2650467744000000000;
 
@@ -1072,9 +1072,7 @@ HRESULT dhShowException(PDH_EXCEPTION pException)
 {
 	WCHAR szMessage[512];
 
-	if (!pException) return E_INVALIDARG;
-
-	dhFormatException(pException, szMessage, ARRAYSIZE(szMessage), FALSE);
+	dhFormatExceptionW(pException, szMessage, ARRAYSIZE(szMessage), FALSE);
 
 	MessageBoxW(g_ExceptionOptions.hwnd, szMessage, g_ExceptionOptions.szAppName,
 	            MB_ICONSTOP | MB_SETFOREGROUND);
@@ -1082,13 +1080,28 @@ HRESULT dhShowException(PDH_EXCEPTION pException)
 	return NOERROR;
 }
 
-HRESULT dhFormatException(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
+HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
 {
 	HRESULT hr;
 	UINT cch = 0;
 #	define DESCRIPTION_LENGTH 255
 
-	if (!pException || (!szBuffer && cchBufferSize)) return E_INVALIDARG;
+	if (!szBuffer && cchBufferSize) return E_INVALIDARG;
+
+	if (!pException)
+	{
+		dhGetLastException(&pException);
+		if (!pException)
+		{
+			if (cchBufferSize != 0)
+			{
+				_snwprintf(szBuffer, cchBufferSize, L"No error information available.");
+				szBuffer[cchBufferSize - 1] = L'\0';
+			}
+
+			return NOERROR;
+		}
+	}
 
 	hr = (pException->hr == DISP_E_EXCEPTION && pException->swCode ?
 			pException->swCode : pException->hr);
@@ -1177,6 +1190,18 @@ HRESULT dhFormatException(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBuf
 
 		szBuffer[cchBufferSize - 1] = L'\0';
 	}
+
+	return NOERROR;
+}
+
+HRESULT dhFormatExceptionA(PDH_EXCEPTION pException, LPSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
+{
+	WCHAR szBufferW[1024];
+
+	dhFormatExceptionW(pException, szBufferW, ARRAYSIZE(szBufferW), bFixedFont);
+
+	if (0 == WideCharToMultiByte(CP_ACP, 0, szBufferW, -1, szBuffer, cchBufferSize, NULL, NULL))
+		return HRESULT_FROM_WIN32( GetLastError() );
 
 	return NOERROR;
 }
