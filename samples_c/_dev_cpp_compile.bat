@@ -20,7 +20,7 @@ g++.exe %1.o disphelper.o -o %1.exe -L"C:/Dev-Cpp/lib" -lole32 -loleaut32 -luuid
 
 :lblprogra
 
-:: For thos installed under "C:\Program Files\Dev-Cpp\"
+:: For those installed under "C:\Program Files\Dev-Cpp\"
 gcc.exe -c disphelper.c -o disphelper.o -I"C:/Program Files/Dev-Cpp/include"
 gcc.exe -c %1 -o %1.o -I"C:/Program Files/Dev-Cpp/include"
 g++.exe %1.o disphelper.o -o %1.exe -L"C:/Program Files/Dev-Cpp/lib" -lole32 -loleaut32 -luuid
