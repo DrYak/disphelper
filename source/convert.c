@@ -25,10 +25,10 @@
 #include <math.h>
 
   /* Number of 100 nannosecond units in a FILETIME day */
-static const ULONGLONG FILE_TIME_ONE_DAY           = 864000000000;
+static const LONGLONG FILE_TIME_ONE_DAY           = 864000000000;
 
   /* VARIANT DATE 0 (1899-Dec-30) as a FILETIME */
-static const ULONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000;
+static const LONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000;
 
   /* FILETIME of day 1, year 10,000 */
 static const ULONGLONG FILE_TIME_VARIANT_OVERFLOW  = 2650467744000000000;
