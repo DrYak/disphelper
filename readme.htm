@@ -526,7 +526,7 @@ an object multiple times.</p>
     // Dump the details of the last error to a log file
     void LogDhError(void)
     {
-        PDH_EXCEPTION * pException = NULL;
+        PDH_EXCEPTION pException = NULL;
         dhGetLastException(&amp;pException);
 
         if (pException)
