@@ -195,9 +195,7 @@ HRESULT dhShowException(PDH_EXCEPTION pException)
 {
 	WCHAR szMessage[512];
 
-	if (!pException) return E_INVALIDARG;
-
-	dhFormatException(pException, szMessage, ARRAYSIZE(szMessage), FALSE);
+	dhFormatExceptionW(pException, szMessage, ARRAYSIZE(szMessage), FALSE);
 
 	/* NOTE: MessageBoxW is one of the few unicode APIs available on Win9x. */
 	MessageBoxW(g_ExceptionOptions.hwnd, szMessage, g_ExceptionOptions.szAppName,
@@ -215,13 +213,28 @@ HRESULT dhShowException(PDH_EXCEPTION pException)
  * in szBuffer.
  *
  ============================================================================ */
-HRESULT dhFormatException(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
+HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
 {
 	HRESULT hr;
 	UINT cch = 0;
 #	define DESCRIPTION_LENGTH 255
 
-	if (!pException || (!szBuffer && cchBufferSize)) return E_INVALIDARG;
+	if (!szBuffer && cchBufferSize) return E_INVALIDARG;
+
+	if (!pException)
+	{
+		dhGetLastException(&pException);
+		if (!pException)
+		{
+			if (cchBufferSize != 0)
+			{
+				_snwprintf(szBuffer, cchBufferSize, L"No error information available.");
+				szBuffer[cchBufferSize - 1] = L'\0';
+			}
+
+			return NOERROR;
+		}
+	}
 
 	hr = (pException->hr == DISP_E_EXCEPTION && pException->swCode ?
 			pException->swCode : pException->hr);
@@ -322,6 +335,19 @@ HRESULT dhFormatException(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBuf
 	return NOERROR;
 }
 
+
+/* ============================================================================ */
+HRESULT dhFormatExceptionA(PDH_EXCEPTION pException, LPSTR szBuffer, UINT cchBufferSize, BOOL bFixedFont)
+{
+	WCHAR szBufferW[1024];
+
+	dhFormatExceptionW(pException, szBufferW, ARRAYSIZE(szBufferW), bFixedFont);
+
+	if (0 == WideCharToMultiByte(CP_ACP, 0, szBufferW, -1, szBuffer, cchBufferSize, NULL, NULL))
+		return HRESULT_FROM_WIN32( GetLastError() );
+
+	return NOERROR;
+}
 
 
 /* **************************************************************************
