@@ -464,8 +464,53 @@ dhGetValue(L"%o", &amp;colQuickFixes, wmiSvc, L".ExecQuery(%S)",
          dhFreeString(QuickFix.szDescription);
          dhFreeString(QuickFix.szInstalledBy);
 
-         // The NEXT takes care of cleaning everything up
+         // The NEXT takes care of cleaning up the enumeration
      } NEXT(objQuickFix);
+
+     // Enumerate word documents
+     FOR_EACH(wdDoc, wdApp, L".Documents")
+     {
+         dhCallMethod(wdDoc, L".Range.InsertBefore(%s)", "DispHelper");
+
+     } NEXT(wdDoc);
+
+     // The FOR_EACH macro can also take arguments
+     // Note that we append FOR_EACH with the number of arguments, up to 4
+     // Enumerate each word in the second document
+     FOR_EACH1(wdWord, wdApp, L".Documents(%d).Words", 2)
+     {
+         dhPutValue(wdWord, L".Font.Bold = %b", TRUE);
+
+     } NEXT(wdWord);
+</pre>
+
+<h3>Optimising with WITH</h3>
+<p>With a similar syntaxt to the FOR_EACH macro the WITH macro allows you to avoid retrieving
+an object multiple times.</p>
+<pre>
+     // Without the WITH macro
+     dhPutValue(wdApp, L".Selection.Font.Size = %d", 20);
+     dhPutValue(wdApp, L".Selection.Font.SmallCaps = %b", TRUE);
+     dhPutValue(wdApp, L".Selection.Font.Name = %S", L"Comic Sans MS");
+     dhPutValue(wdApp, L".Selection.Font.Color = %d", RGB(33,99,0) );
+
+     // Optimized with the WITH macro
+     WITH(wdFont, wdApp, L".Selection.Font")
+     {
+         dhPutValue(wdFont, L".Size = %d", 20);
+         dhPutValue(wdFont, L".SmallCaps = %b", TRUE);
+         dhPutValue(wdFont, L".Name = %S", L"Comic Sans MS");
+         dhPutValue(wdFont, L".Color = %d", RGB(33,99,0) );
+
+     } END_WITH(wdFont);
+
+     // The WITH macro can also take arguments.
+     WITH1(wdFont, wdApp, L".Documents(%d).Range.Font", 1)
+     {
+         dhPutValue(wdFont, L".Size = %d", 20);
+         dhPutValue(wdFont, L".SmallCaps = %b", TRUE);
+
+     } END_WITH(wdFont);
 </pre>
 
 
