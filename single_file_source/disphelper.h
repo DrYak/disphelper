@@ -333,4 +333,399 @@ DBG_CODE( { \
 }
 #endif
 
+
+
+
+/* ===================================================================== */
+#if defined(__cplusplus) && !defined(DISPHELPER_NO_CPP_EXTENSIONS)
+
+#include <iostream>
+#include <string>
+
+#ifdef _MSC_VER
+#pragma warning( disable : 4290 ) /* throw() specification ignored */
+#endif
+
+#ifndef DISPHELPER_USE_MS_SMART_PTR
+
+template <class T>
+class CDhComPtr
+{
+public:
+	CDhComPtr() throw() : m_pInterface (NULL) {}
+
+	CDhComPtr(T* pInterface) throw() : m_pInterface (pInterface)
+	{
+		if (m_pInterface) m_pInterface->AddRef();
+	}
+
+	CDhComPtr(const CDhComPtr& original) throw() : m_pInterface (original.m_pInterface)
+	{
+		if (m_pInterface) m_pInterface->AddRef();
+	}
+
+	~CDhComPtr() throw()
+	{
+		Dispose();
+	}
+
+	void Dispose() throw()
+	{
+		if (m_pInterface)
+		{
+			m_pInterface->Release();
+			m_pInterface = NULL;
+		}
+	}
+
+	T* Detach() throw()
+	{
+		T* temp = m_pInterface;
+		m_pInterface = NULL;
+		return temp;
+	}
+
+	inline operator T*() const throw()
+	{
+        	return m_pInterface;
+	}
+
+	T** operator&() throw()
+	{
+		Dispose();
+        	return &m_pInterface;
+	}
+
+	T* operator->() const throw(HRESULT)
+	{
+		if (!m_pInterface) throw E_POINTER;
+		return m_pInterface;
+	}
+
+	CDhComPtr& operator=(T* pInterface) throw()
+	{
+		if (m_pInterface != pInterface)
+		{
+			T* pOldInterface = m_pInterface;
+			m_pInterface = pInterface;
+			if (m_pInterface)  m_pInterface->AddRef();
+			if (pOldInterface) pOldInterface->Release();
+		}
+
+		return *this;
+	}
+
+	CDhComPtr& operator=(const int null) throw(HRESULT)
+	{
+		if (null != 0) throw(E_POINTER);
+		return operator=((T*) NULL);
+	}
+
+	CDhComPtr& operator=(const CDhComPtr& rhs) throw()
+	{
+		return operator=(rhs.m_pInterface);
+	}
+
+private:
+	T* m_pInterface;
+};
+
+typedef CDhComPtr<IDispatch>    CDispPtr;
+typedef CDhComPtr<IEnumVARIANT> CEnumPtr;
+typedef CDhComPtr<IUnknown>     CUnknownPtr;
+
+#else /* DISPHELPER_USE_MS_SMART_PTR */
+
+#include <comdef.h> 
+typedef IDispatchPtr    CDispPtr;
+typedef IEnumVARIANTPtr CEnumPtr;
+typedef IUnknownPtr     CUnknownPtr;
+
+#endif /* DISPHELPER_USE_MS_SMART_PTR */
+
+
+
+
+/* ===================================================================== */
+template <class T>
+class CDhStringTemplate
+{
+public:
+	CDhStringTemplate() throw() : m_strptr (NULL) {}
+
+	CDhStringTemplate(const CDhStringTemplate& original) throw()
+	{
+		Copy(original.m_strptr);
+	}
+
+	CDhStringTemplate(const int null) throw(HRESULT) : m_strptr (NULL)
+	{
+		if (null != 0) throw(E_POINTER);
+	}
+
+	~CDhStringTemplate() throw()
+	{
+		Dispose();
+	}
+
+	void Dispose() throw()
+	{
+		dhFreeString(m_strptr);
+		m_strptr = NULL;
+	}
+
+	T* Detach() throw()
+	{
+		T* temp = m_strptr;
+		m_strptr = NULL;
+		return temp;
+	}
+
+	T** operator&() throw()
+	{
+		Dispose();
+		return &m_strptr;
+	}
+
+	inline operator T*() const throw()
+	{
+		return m_strptr;
+	}
+
+	inline T& operator[](int nIndex) const throw()
+	{
+		return m_strptr[nIndex];
+	}
+
+	CDhStringTemplate& operator=(const CDhStringTemplate& rhs)
+	{
+		if (m_strptr != rhs.m_strptr)
+		{
+			T* temp = m_strptr;
+			Copy(rhs.m_strptr);
+			dhFreeString(temp);
+		}
+
+		return *this;
+	}
+
+	CDhStringTemplate& operator=(const int null) throw(HRESULT)
+	{
+		if (null != 0) throw(E_POINTER);
+		Dispose();
+		return *this;
+	}
+
+private:
+	void Copy(const T* rhs)
+	{
+		if (rhs == NULL)
+		{
+			m_strptr = NULL;
+		}
+		else if (sizeof(T) == sizeof(CHAR))
+		{
+			m_strptr = (T*) SysAllocStringByteLen((LPCSTR) rhs, SysStringByteLen((BSTR) rhs));
+		}
+		else
+		{
+			m_strptr = (T*) SysAllocStringLen((OLECHAR *) rhs, SysStringLen((BSTR) rhs));
+		}
+	}
+
+	T* m_strptr;
+};
+
+typedef CDhStringTemplate<CHAR>    CDhStringA;  /* Ansi string - LPSTR */
+typedef CDhStringTemplate<WCHAR>   CDhStringW;  /* Unicode string - LPWSTR */
+typedef CDhStringTemplate<OLECHAR> CDhStringB;  /* Unicode bstring - BSTR */
+typedef CDhStringTemplate<TCHAR>   CDhStringT;  /* T string - LPTSTR */
+typedef CDhStringTemplate<TCHAR>   CDhString;   /* T string - LPTSTR */
+
+inline std::ostream& operator<<(std::ostream& os, const CDhStringA& s)
+{
+	return os << (s ? s : (char*) "(null)");
+}
+
+inline std::wostream& operator<<(std::wostream& os, const CDhStringW& s)
+{
+	return os << (s ? s : (wchar_t*) L"(null)");
+}
+
+
+
+
+/* ===================================================================== */
+class CDhInitialize
+{
+public:
+	CDhInitialize(const BOOL bInitCom = TRUE) throw() : m_bInitCom (bInitCom)
+	{
+		dhInitialize(m_bInitCom);
+	}
+
+	~CDhInitialize() throw()
+	{
+		dhUninitialize(m_bInitCom);
+	}
+private:
+	BOOL m_bInitCom;
+};
+
+
+
+
+/* ===================================================================== */
+#ifndef DISPHELPER_NO_EXCEPTIONS
+class dhThrowFunctions
+{
+public:
+	static void throw_string() throw(std::string)
+	{
+		CHAR szMessage[512];
+		dhFormatExceptionA(NULL, szMessage, sizeof(szMessage)/sizeof(szMessage[0]), TRUE);
+		throw std::string(szMessage);
+	}
+
+	static void throw_wstring() throw(std::wstring)
+	{
+		WCHAR szMessage[512];
+		dhFormatExceptionW(NULL, szMessage, sizeof(szMessage)/sizeof(szMessage[0]), TRUE);
+		throw std::wstring(szMessage);
+	}
+	
+	static void throw_dhexception() throw(PDH_EXCEPTION)
+	{
+		PDH_EXCEPTION pException = NULL;
+		dhGetLastException(&pException);
+		throw pException;
+	}
+};
+#endif /* DISPHELPER_NO_EXCEPTIONS */
+
+
+
+
+/* ===================================================================== */
+#ifndef DISPHELPER_NO_EXCEPTIONS
+inline bool dhIfFailThrowString(HRESULT hr) throw(std::string)
+{
+	if (FAILED(hr)) dhThrowFunctions::throw_string();
+	return true;
+}
+
+inline bool dhIfFailThrowWString(HRESULT hr) throw(std::wstring)
+{
+	if (FAILED(hr)) dhThrowFunctions::throw_wstring();
+	return true;
+}
+
+inline bool dhIfFailThrowDhException(HRESULT hr) throw(PDH_EXCEPTION)
+{
+	if (FAILED(hr)) dhThrowFunctions::throw_dhexception();
+	return true;
+}
+
+#define dhCheck dhIfFailThrowString
+
+#endif /* DISPHELPER_NO_EXCEPTIONS */
+
+
+
+
+/* ===================================================================== */
+#ifndef DISPHELPER_NO_WITH
+
+#undef WITH0
+#define WITH0(objName, pDisp, szMember) { \
+	CDispPtr objName;                 \
+	if (SUCCEEDED(dhGetValue(L"%o", &objName, pDisp, szMember))) {
+
+#undef WITH1
+#define WITH1(objName, pDisp, szMember, arg1) { \
+	CDispPtr objName;                       \
+	if (SUCCEEDED(dhGetValue(L"%o", &objName, pDisp, szMember, arg1))) {
+
+#undef WITH2
+#define WITH2(objName, pDisp, szMember, arg1, arg2) { \
+	CDispPtr objName;                             \
+	if (SUCCEEDED(dhGetValue(L"%o", &objName, pDisp, szMember, arg1, arg2))) {
+
+#undef WITH3
+#define WITH3(objName, pDisp, szMember, arg1, arg2, arg3) { \
+	CDispPtr objName;                                   \
+	if (SUCCEEDED(dhGetValue(L"%o", &objName, pDisp, szMember, arg1, arg2, arg3))) {
+
+#undef WITH4
+#define WITH4(objName, pDisp, szMember, arg1, arg2, arg3, arg4) { \
+	CDispPtr objName;                                         \
+	if (SUCCEEDED(dhGetValue(L"%o", &objName, pDisp, szMember, arg1, arg2, arg3, arg4))) {
+
+#undef ON_WITH_ERROR
+#define ON_WITH_ERROR(objName) } else {
+
+#undef END_WITH
+#define END_WITH(objName) }}
+
+#define END_WITH_THROW(objName) } else { dhThrowFunctions::throw_string(); }}
+
+#endif /* DISPHELPER_NO_WITH */
+
+
+
+
+/* ===================================================================== */
+#ifndef DISPHELPER_NO_FOR_EACH
+
+#undef FOR_EACH0
+#define FOR_EACH0(objName, pDisp, szMember) { \
+	CEnumPtr xx_pEnum_xx;     \
+	if (SUCCEEDED(dhEnumBegin(&xx_pEnum_xx, pDisp, szMember))) { \
+		CDispPtr objName; \
+		while (dhEnumNextObject(xx_pEnum_xx, &objName) == NOERROR) {
+
+#undef FOR_EACH1
+#define FOR_EACH1(objName, pDisp, szMember, arg1) { \
+	CEnumPtr xx_pEnum_xx;     \
+	if (SUCCEEDED(dhEnumBegin(&xx_pEnum_xx, pDisp, szMember, arg1))) { \
+		CDispPtr objName; \
+		while (dhEnumNextObject(xx_pEnum_xx, &objName) == NOERROR) {
+
+#undef FOR_EACH2
+#define FOR_EACH2(objName, pDisp, szMember, arg1, arg2) { \
+	CEnumPtr xx_pEnum_xx;     \
+	if (SUCCEEDED(dhEnumBegin(&xx_pEnum_xx, pDisp, szMember, arg1, arg2))) { \
+		CDispPtr objName; \
+		while (dhEnumNextObject(xx_pEnum_xx, &objName) == NOERROR) {
+
+#undef FOR_EACH3
+#define FOR_EACH3(objName, pDisp, szMember, arg1, arg2, arg3) { \
+	CEnumPtr xx_pEnum_xx;     \
+	if (SUCCEEDED(dhEnumBegin(&xx_pEnum_xx, pDisp, szMember, arg1, arg2, arg3))) { \
+		CDispPtr objName; \
+		while (dhEnumNextObject(xx_pEnum_xx, &objName) == NOERROR) {
+
+#undef FOR_EACH4
+#define FOR_EACH4(objName, pDisp, szMember, arg1, arg2, arg3, arg4) { \
+	CEnumPtr xx_pEnum_xx;     \
+	if (SUCCEEDED(dhEnumBegin(&xx_pEnum_xx, pDisp, szMember, arg1, arg2, arg3, arg4))) { \
+		CDispPtr objName; \
+		while (dhEnumNextObject(xx_pEnum_xx, &objName) == NOERROR) {
+
+#undef ON_FOR_EACH_ERROR
+#define ON_FOR_EACH_ERROR(objName) }} else {{
+
+#undef NEXT
+#define NEXT(objName) }}}
+
+#define NEXT_THROW(objName) }} else { dhThrowFunctions::throw_string(); }}
+
+#endif /* DISPHELPER_NO_FOR_EACH */
+
+#ifdef _MSC_VER
+#pragma warning( default : 4290 )
+#endif
+
+#endif /* defined(__cplusplus) && !defined(DISPHELPER_NO_CPP_EXTENSIONS) */
+
 #endif /* ----- DISPHELPER_H_INCLUDED ----- */
