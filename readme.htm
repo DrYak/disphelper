@@ -61,7 +61,7 @@
 
 <h1>DispHelper</h1>
 
-<p>DispHelper Version 0.80 - June 2004.</p>
+<p>DispHelper Version 0.81 - July 2004.</p>
 
 <h2>Introduction</h2>
 <p>The aim of the DispHelper library is to allow C/C++ programmers to use COM objects
@@ -132,77 +132,78 @@ commercial projects, and analysed the source code for bugs without uncovering an
 <strong>single_file_source: </strong>Contains a compacted single file version of the source
 for easy inclusion in your projects.<br />
 <strong>samples_c: </strong>Contains several DispHelper samples in C.<br />
-<strong>samples_cpp: </strong>Currently empty. Will contain samples optimized for C++.<br />
+<strong>samples_cpp: </strong>Contains several DispHelper samples in C++.<br />
 <strong>samples_applications: </strong>Currently empty. Will contain small sample applications that
 make use of DispHelper.</p>
 
 <h2>Samples</h2>
-<p>Several samples are available in the <strong>samples_c</strong> directory. Batch files to compile these
+<p>Several samples are available in the <strong>samples_c</strong> and <strong>samples_cpp</strong> directories.
+Batch files to compile these
 samples are provided for Dev-C++, Visual C++ and LCC-WIN32. Drag the sample file you wish to
 compile onto the appropriate batch file. You may have to edit the batch file for your environment.</p>
-<p>While each of these samples will compile as either C or C++, many are not C++ friendly. Included in
-a future release will be C++ friendly versions of the samples which will make use of smart pointers,
-exceptions and the C++ standard libraries.</p>
+<p>While each of the samples in samples_c will compile as either C or C++, more C++ friendly versions, which
+make use of smart pointers, C++ exceptions and the C++ standard libraries are
+available in the samples_cpp directory.</p>
 
 <h2>Sample List</h2>
 <table cellspacing="0">
 <tr><th>File</th><th>Description</th></tr>
 
 <tr>
-  <td>word.c</td>
+  <td>word</td>
   <td>Demonstrates outputting formatted text to a Word document and getting user feed
 back with the help of the office assistant. Demonstrates using Word as a spell
 checker.</td>
 </tr>
 
 <tr>
-  <td>excel.c</td>
+  <td>excel</td>
   <td>Demonstrates outputting formatted data to Excel and using it to create a
 chart. Demonstrates using a safe array to efficiently insert data into Excel.</td>
 </tr>
 
 <tr>
-  <td>email.c</td>
+  <td>email</td>
   <td>Demonstrates sending an email with CDO, Outlook and Eudora.</td>
 </tr>
 
 <tr>
-  <td>ado.c</td>
+  <td>ado</td>
   <td>Demonstrates reading and manipulating data from a data source using ActiveX Data Objects.</td>
 </tr>
 
 <tr>
-  <td>corel.c</td>
+  <td>corel</td>
   <td>Demonstrates outputting formatted text to a WordPerfect document.</td>
 </tr>
 
 <tr>
-  <td>speech.c</td>
+  <td>speech</td>
   <td>Demonstrates using Microsoft Agent and SAPI to provide text-to-speech.</td>
 </tr>
 
 <tr>
-  <td>MSHTML.c</td>
+  <td>MSHTML</td>
   <td>Demonstrates ui-less html parsing and manipulation of the html document object
 model(DOM) using MSHTML.
   Provides functions to parse html from a string, a website or a file.</td>
 </tr>
 
 <tr>
-  <td>regexp.c</td>
+  <td>regexp</td>
   <td>Demonstrates using the VBScript.RegExp object to provide support for regular
 expressions. Provides a function to extract hrefs from a web page using a
 regular expression.</td>
 </tr>
 
 <tr>
-  <td>xml.c</td>
+  <td>xml</td>
   <td>Demonstrates using MSMXL to download a web page, read an RSS feed and read and
 manipulate XML with the XML document object model(DOM).</td>
 </tr>
 
 <tr>
-  <td>wmi.c</td>
+  <td>wmi</td>
   <td>Demonstrates using Windows Management Instrumentation(WMI).
 
   Samples include enumerating installed hot fixes, purging print queues, starting
@@ -211,40 +212,40 @@ All of these samples can target the local or a remote computer.</td>
 </tr>
 
 <tr>
-  <td>pocketsoap.c</td>
+  <td>pocketsoap</td>
   <td>Demonstrates using the PocketSoap toolkit to utilise several web services.
 Play the 'Who wants to be a millionaire' quiz with the help of a web service.</td>
 </tr>
 
 <tr>
-  <td>soap.c</td>
+  <td>soap</td>
   <td>Demonstrates using the MSSoap toolkit to utilise several web services.
 Web services demonstrated include Google search, spell checker and cache viewer.</td>
 </tr>
 
 <tr>
-  <td>iexplore.c</td>
+  <td>iexplore</td>
   <td>Demonstrates controlling Internet Explorer via COM. Demonstrates using an Internet
 Explorer window to display or retrieve information from the user.</td>
 </tr>
 
 <tr>
-  <td>scriptctl.c</td>
+  <td>scriptctl</td>
   <td>Demonstrates using the MSScriptControl to run a VBScript or JScript.</td>
 </tr>
 
 <tr>
-  <td>dexplore.c</td>
+  <td>dexplore</td>
   <td>Demonstrates controlling Microsoft's new help system for developers, dexplore.</td>
 </tr>
 
 <tr>
-  <td>dcom_alt_creds.c  </td>
+  <td>dcom_alt_creds</td>
   <td>Demonstrates one way of accessing a remote COM object using alternate credentials.</td>
 </tr>
 
 <tr>
-  <td>wia.c</td>
+  <td>wia</td>
   <td>Demonstrates using Windows Image Acquisition(WIA) to manipulate
 images. Demonstrates taking a snapshot from a video device.</td>
 </tr>
@@ -384,6 +385,9 @@ dhInitialize(TRUE);
 // Initializes DispHelper only. COM must be initialized seperately
 // using CoInitialize(), CoInitializeEx() or OleInitialize().
 dhInitialize(FALSE);
+
+// Using the C++ initialization class
+CDhInitialize init;
 </pre>
 
 <h3>Declaring a DispHelper COM object</h3>
@@ -393,6 +397,9 @@ DISPATCH_OBJ(wdDoc);
 
 // Without the macro
 IDispatch * wdDoc = NULL;
+
+// Using the C++ smart pointer
+CDispPtr wdDoc;
 </pre>
 
 <h3>Toggling Exceptions</h3>
@@ -526,19 +533,9 @@ an object multiple times.</p>
     // Dump the details of the last error to a log file
     void LogDhError(void)
     {
-        PDH_EXCEPTION pException = NULL;
-        dhGetLastException(&amp;pException);
-
-        if (pException)
-        {
-            WCHAR szMessage[512];
-            dhFormatException(pException, szMessage, 512, TRUE);
-            fprintf(g_hLogFile, "%S", szMessage);
-        }
-        else
-        {
-            fprintf(g_hLogFile, "No error information available.");
-        }
+        char szMessage[512];
+        dhFormatExceptionA(NULL, szMessage, sizeof(szMessage)/sizeof(szMessage[0]), TRUE);
+        fprintf(g_hLogFile, "%s", szMessage);
     }
 
     // Sample usage
@@ -549,16 +546,30 @@ an object multiple times.</p>
     }
 </pre>
 
+<h3>Throw a C++ exception on error</h3>
+<pre>
+    // Use the dhCheck macro which will throw a std::string on error
+
+    try
+    {
+        dhCheck( dhCallMethod(wdApp, L".Selection.TypeText(%s)", "Hello World") );
+        dhCheck( dhPutValue(wdApp, L".Selection.Font.Bold = %b", TRUE) );
+    }
+    catch (string errstr)
+    {
+        cerr &lt;&lt; "Fatal error details:" &lt;&lt; endl &lt;&lt; errstr &lt;&lt; endl;
+    }
+</pre>
+
+
 <h3>Releasing a COM object</h3>
 <pre>
-// Make use of the SAFE_RELEASE macro
+// Make use of the SAFE_RELEASE macro - do not use with smart pointer
 SAFE_RELEASE(wdApp);
 </pre>
 
 <h2>Future Directions</h2>
-<p>In the near future DispHelper will become more C++ friendly, with samples
-that use exceptions, smart pointers and the C++ standard libraries.</p>
-<p>DispHelper may also expand to allow easy hosting of ActiveX controls, if demand exists.</p>
+<p>DispHelper may expand to allow easy hosting of ActiveX controls, if demand exists.</p>
 
 <p style="text-align:center;"><a href="http://sourceforge.net" title="Go to SourceForge.net - The open source development site">
 <img src="http://sourceforge.net/sflogo.php?group_id=111558&amp;type=3" width="125" height="37" style="border:none;" alt="Go to SourceForge.net - The open source development site" />
