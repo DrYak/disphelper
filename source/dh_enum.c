@@ -60,10 +60,10 @@ HRESULT dhEnumBeginV(IEnumVARIANT ** ppEnum, IDispatch * pDisp, LPCOLESTR szMemb
 	if (FAILED(hr)) return DH_EXITEX(hr, TRUE, L"_NewEnum", szMember, &excep, 0);
 
 	/* Retrieve an IEnumVariant interface from the returned interface */
-	if (vtResult.vt == VT_DISPATCH)
-		hr = vtResult.pdispVal->lpVtbl->QueryInterface(vtResult.pdispVal, &IID_IEnumVARIANT, (void **) ppEnum);
-	else if (vtResult.vt == VT_UNKNOWN)
-		hr = vtResult.punkVal->lpVtbl->QueryInterface(vtResult.punkVal, &IID_IEnumVARIANT, (void **) ppEnum);
+	if (V_VT(&vtResult) == VT_DISPATCH)
+		hr = V_DISPATCH(&vtResult)->lpVtbl->QueryInterface(V_DISPATCH(&vtResult), &IID_IEnumVARIANT, (void **) ppEnum);
+	else if (V_VT(&vtResult) == VT_UNKNOWN)
+		hr = V_UNKNOWN(&vtResult)->lpVtbl->QueryInterface(V_UNKNOWN(&vtResult), &IID_IEnumVARIANT, (void **) ppEnum);
 	else
 		hr = E_NOINTERFACE;
 
@@ -112,14 +112,14 @@ HRESULT dhEnumNextObject(IEnumVARIANT * pEnum, IDispatch ** ppDisp)
 
 	if (hr == S_OK)
 	{
-		if (vtResult.vt == VT_DISPATCH)
+		if (V_VT(&vtResult) == VT_DISPATCH)
 		{
-			*ppDisp = vtResult.pdispVal;
+			*ppDisp = V_DISPATCH(&vtResult);
 		}
 		else
 		{
 			hr = VariantChangeType(&vtResult, &vtResult, 0, VT_DISPATCH);
-			if (SUCCEEDED(hr)) *ppDisp = vtResult.pdispVal;
+			if (SUCCEEDED(hr)) *ppDisp = V_DISPATCH(&vtResult);
 			else VariantClear(&vtResult);
 		}
 	}

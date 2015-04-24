@@ -20,6 +20,13 @@
 #include "disphelper.h"
 #include <assert.h>
 
+#ifdef __WINE__
+// Wine uses the system widechar string function which as C99 compliant ( swprintf is the wide equivalent of snprintf )
+// whereas Windows' API, and thus MinGW, Visual Studio, etc. are not compliant ( swprintf is the wide equivalent of sprintf,  snwprintf is the wide equivalent of snprintf)
+#define _snwprintf swprintf
+#endif
+
+
 #ifndef DISPHELPER_NO_EXCEPTIONS
 
 /* Structure to store global exception options. */
@@ -314,7 +321,7 @@ HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBu
 	{
 		if (!bFixedFont)
 		{
-			_snwprintf(szBuffer, cchBufferSize, L"Member:\t  %s\r\nFunction:\t  %s\t\t\r\nError In:\t  %s\r\nError:\t  %s\r\nCode:\t  %x\r\nSource:\t  %s",
+			_snwprintf(szBuffer, cchBufferSize, L"Member:\t  %ls\r\nFunction:\t  %ls\t\t\r\nError In:\t  %ls\r\nError:\t  %ls\r\nCode:\t  %x\r\nSource:\t  %ls",
 				pException->szCompleteMember,
 				pException->szInitialFunction, pException->szErrorFunction,
 				pException->szDescription, hr,
@@ -322,7 +329,7 @@ HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBu
 		}
 		else
 		{
-			_snwprintf(szBuffer, cchBufferSize, L"Member:   %s\r\nFunction: %s\r\nError In: %s\r\nError:    %s\r\nCode:     %x\r\nSource:   %s",
+			_snwprintf(szBuffer, cchBufferSize, L"Member:   %ls\r\nFunction: %ls\r\nError In: %ls\r\nError:    %ls\r\nCode:     %x\r\nSource:   %ls",
 				pException->szCompleteMember,
 				pException->szInitialFunction, pException->szErrorFunction,
 				pException->szDescription, hr,

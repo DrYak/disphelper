@@ -23,7 +23,7 @@
 static HRESULT TraverseSubObjects(IDispatch ** ppDisp, LPWSTR * lpszMember, va_list * marker);
 static HRESULT CreateArgumentArray(LPWSTR szTemp, VARIANT * pArgs, BOOL * pbFreeList, UINT * pcArgs, va_list * marker);
 static HRESULT InternalInvokeV(int invokeType, VARTYPE returnType, VARIANT * pvResult, IDispatch * pDisp, LPOLESTR szMember, va_list * marker);
-static HRESULT ExtractArgument(VARIANT * pvArg, WCHAR chIdentifier, BOOL * pbFreeArg, va_list * marker);
+static HRESULT ExtractArgument(VARIANT * pvArg, const WCHAR * chIdentifierPtr, BOOL * pbFreeArg, va_list * marker);
 
 
 /* **************************************************************************
@@ -120,7 +120,7 @@ static HRESULT TraverseSubObjects(IDispatch ** ppDisp, LPWSTR * lpszMember, va_l
 		hr = InternalInvokeV(DISPATCH_METHOD|DISPATCH_PROPERTYGET, VT_DISPATCH,
 		                     &vtObject, *ppDisp, szTemp, marker);
 
-		if (!vtObject.pdispVal && SUCCEEDED(hr)) hr = E_NOINTERFACE;
+		if (! V_DISPATCH(&vtObject) && SUCCEEDED(hr)) hr = E_NOINTERFACE;
 
 		/* Release old object in *ppDisp */
 		(*ppDisp)->lpVtbl->Release(*ppDisp);
@@ -128,7 +128,7 @@ static HRESULT TraverseSubObjects(IDispatch ** ppDisp, LPWSTR * lpszMember, va_l
 		if (FAILED(hr)) break;
 
 		/* Copy new object into *ppDisp */
-		*ppDisp = vtObject.pdispVal; 
+		*ppDisp = V_DISPATCH(&vtObject);
 
 		/* Point next object name to start at character after '.'.
 		 * eg. szTemp will now equal "Range.Font.Bold" */
@@ -183,7 +183,7 @@ static HRESULT InternalInvokeV(int invokeType, VARTYPE returnType, VARIANT * pvR
 		/* Coerce result (if it exists) into the desired type. 
 		 * Note that VT_EMPTY means do not coerce the return value. */
 		if (SUCCEEDED(hr) && pvResult != NULL &&
-	            pvResult->vt != returnType && returnType != VT_EMPTY)
+	            V_VT(pvResult) != returnType && returnType != VT_EMPTY)
 		{
 			hr = VariantChangeType(pvResult, pvResult, 16 /* = VARIANT_LOCALBOOL */, returnType);
 			if (FAILED(hr)) VariantClear(pvResult);
@@ -246,7 +246,7 @@ static HRESULT CreateArgumentArray(LPWSTR szMember, VARIANT * pArgs, BOOL * pbFr
 			szMember++; /* Move forward to actual identifier */
 
 			/* Extract argument based on identifier */
-			hr = ExtractArgument(&pArgs[iArg], *szMember, &pbFreeList[iArg], marker);
+			hr = ExtractArgument(&pArgs[iArg], szMember, &pbFreeList[iArg], marker);
 
 			if (FAILED(hr)) break;
 		}
@@ -277,12 +277,36 @@ static HRESULT CreateArgumentArray(LPWSTR szMember, VARIANT * pArgs, BOOL * pbFr
  * identifier and pack it in a VARIANT.
  *
  ============================================================================ */
-static HRESULT ExtractArgument(VARIANT * pvArg, WCHAR chIdentifier, BOOL * pbFreeArg, va_list * marker)
+static HRESULT ExtractArgument(VARIANT * pvArg, const WCHAR * chIdentifier, BOOL * pbFreeArg, va_list * marker)
 {
 	HRESULT hr = NOERROR;
+	WCHAR chIdentifier = *chIdentifierPtr;
+	BOOL isRef = FALSE;
+	INT  size = 0;
 
 	/* By default, the argument does not need to be freed */
 	*pbFreeArg = FALSE;
+
+	/* C++ -like "byref" modifier */
+	if (chIdentifier == L'&')
+	{
+		isRef = TRUE;
+		chIdentifier = *(++chIdentifierPtr);
+	}
+
+	/* scanf -like format modifier */
+	while(chIdentifier)
+	{
+		if (chIdentifier == L'h')
+			size--;
+		else if (chIdentifier == L'l')
+			size++;
+		else if (chIdentifier == L'L')
+			size=2;	// long-long is always 64bits
+		else break;
+
+		chIdentifier = *(++chIdentifierPtr);
+	}
 
 	/* Change 'T' identifier to 'S' or 's' based on UNICODE mode */
 	if (chIdentifier == L'T') chIdentifier = (dh_g_bIsUnicodeMode ? L'S' : L's');
@@ -290,18 +314,135 @@ static HRESULT ExtractArgument(VARIANT * pvArg, WCHAR chIdentifier, BOOL * pbFre
 	switch (chIdentifier)
 	{
 		case L'd':   /* LONG */
-			V_VT(pvArg)  = VT_I4;
-			V_I4(pvArg)  = va_arg(*marker, LONG);
+			if (isRef)
+			{
+				switch(size)
+				{
+					case -2:
+						V_VT(pvArg)  = VT_I1 | VT_BYREF;
+//						V_I1REF(pvArg)  = va_arg(*marker, CHAR *);
+						break;
+					case -1:
+						V_VT(pvArg)  = VT_I2 | VT_BYREF;
+						V_I2REF(pvArg)  = va_arg(*marker, SHORT *);
+						break;
+					case 0:
+						/* WIN32/WIN64 is assumed : 32bit int (are there still any 16bit OLE in circulation ?!?) */
+					case 1:
+						/* WIN64 is LLP64 thus even long are always 32bits regardless of OS */
+						V_VT(pvArg)  = VT_I4 | VT_BYREF;
+						V_I4REF(pvArg)  = va_arg(*marker, LONG *);
+						break;
+					case 2:
+						V_VT(pvArg)  = VT_I8 | VT_BYREF;
+						V_I8REF(pvArg)  = va_arg(*marker, LONGLONG *);
+						break;
+					default:
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			}
+			else
+			{
+				if (size == 2)
+				{
+					/* special case for 64-bits integers */
+					V_VT(pvArg)  = VT_I8;
+					V_I8(pvArg)  = va_arg(*marker, LONGLONG);
+				}
+				else
+				{
+					/* all other are promoted to 32-bits integers when passed as arguments */
+					V_VT(pvArg)  = VT_I4;
+					V_I4(pvArg)  = va_arg(*marker, LONG);
+				}
+			}
 			break;
 
 		case L'u':   /* ULONG */
-			V_VT(pvArg)  = VT_UI4;
-			V_UI4(pvArg) = va_arg(*marker, ULONG);
+			if (isRef) {
+				switch(size)
+				{
+					case -2:
+						V_VT(pvArg)  = VT_UI1 | VT_BYREF;
+//						V_UI1REF(pvArg)  = va_arg(*marker, BYTE *);
+						break;
+					case -1:
+						V_VT(pvArg)  = VT_UI2 | VT_BYREF;
+						V_UI2REF(pvArg) = va_arg(*marker, USHORT *);
+						break;
+					case 0:
+						/* WIN32/WIN64 is assumed : 32bit int (are there still any 16bit OLE in circulation ?!?) */
+					case 1:
+						/* WIN64 is LLP64 thus even long are always 32bits regardless of OS */
+						V_VT(pvArg)  = VT_UI4 | VT_BYREF;
+						V_UI4REF(pvArg)  = va_arg(*marker, ULONG *);
+						break;
+					case 2:
+						V_VT(pvArg)  = VT_UI8 | VT_BYREF;
+						V_UI8REF(pvArg)  = va_arg(*marker, ULONGLONG *);
+						break;
+					default:
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			}
+			else
+			{
+				if (size == 2)
+				{
+					/* special case for 64-bits integers */
+					V_VT(pvArg)  = VT_UI8;
+					V_UI8(pvArg)  = va_arg(*marker, ULONGLONG);
+				}
+				else
+				{
+					/* all other are promoted to 32-bits integers when passed as arguments */
+					V_VT(pvArg)  = VT_UI4;
+					V_UI4(pvArg) = va_arg(*marker, ULONG);
+				}
+			}
 			break;
 
 		case L'e':   /* DOUBLE */
-			V_VT(pvArg)  = VT_R8;
-			V_R8(pvArg)  = va_arg(*marker, DOUBLE);
+			if (isRef)
+			{
+				switch(size)
+				{
+					case -1:
+					case 0:
+						/* Warning, we mimick SCANF default behaviour with efg being 32bits float by default */
+						V_VT(pvArg)  = VT_R4 | VT_BYREF;
+						V_R4REF(pvArg)  = va_arg(*marker, FLOAT *);
+						break;
+					case 1:
+						V_VT(pvArg)  = VT_R8 | VT_BYREF;
+						V_R8REF(pvArg)  = va_arg(*marker, DOUBLE *);
+						break;
+					default:
+						/* OLE32 doesn't support 128bits (default) & 80bits (387) long double floats */
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			}
+			else
+			{
+				if (size == 2)
+				{
+					/* long double floats take 80bits or 128bits and should be consumed accordingly */
+					V_VT(pvArg)  = VT_R8;
+					V_R8(pvArg)  = (DOUBLE) va_arg(*marker, long double);
+				}
+				else
+				{
+					/* float are auto-promoted to 64bit double float when passed as argument */
+					V_VT(pvArg)  = VT_R8;
+					V_R8(pvArg)  = va_arg(*marker, DOUBLE);
+				}
+			}
 			break;
 
 		case L'b':   /* BOOL */
