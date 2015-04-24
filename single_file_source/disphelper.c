@@ -36,6 +36,14 @@
 #include <math.h>
 #include <assert.h>
 
+#ifdef __WINE__
+// Wine uses the system widechar string function which as C99 compliant ( swprintf is the wide equivalent of snprintf )
+// whereas Windows' API, and thus MinGW, Visual Studio, etc. are not compliant ( swprintf is the wide equivalent of sprintf,  snwprintf is the wide equivalent of snprintf)
+#define _snwprintf swprintf
+#endif
+
+
+
 /* ----- convert.h ----- */
 
 HRESULT ConvertFileTimeToVariantTime(FILETIME * pft, DATE * pDate);
@@ -416,7 +424,7 @@ HRESULT dhGetValueV(LPCWSTR szIdentifier, void * pResult, IDispatch * pDisp, LPC
 static HRESULT TraverseSubObjects(IDispatch ** ppDisp, LPWSTR * lpszMember, va_list * marker);
 static HRESULT CreateArgumentArray(LPWSTR szTemp, VARIANT * pArgs, BOOL * pbFreeList, UINT * pcArgs, va_list * marker);
 static HRESULT InternalInvokeV(int invokeType, VARTYPE returnType, VARIANT * pvResult, IDispatch * pDisp, LPOLESTR szMember, va_list * marker);
-static HRESULT ExtractArgument(VARIANT * pvArg, WCHAR chIdentifier, BOOL * pbFreeArg, va_list * marker);
+static HRESULT ExtractArgument(VARIANT * pvArg, const WCHAR * chIdentifierPtr, BOOL * pbFreeArg, va_list * marker);
 
 HRESULT dhInvokeV(int invokeType, VARTYPE returnType, VARIANT * pvResult,
                      IDispatch * pDisp, LPCOLESTR szMember, va_list * marker)
@@ -475,13 +483,13 @@ static HRESULT TraverseSubObjects(IDispatch ** ppDisp, LPWSTR * lpszMember, va_l
 		hr = InternalInvokeV(DISPATCH_METHOD|DISPATCH_PROPERTYGET, VT_DISPATCH,
 		                     &vtObject, *ppDisp, szTemp, marker);
 
-		if (!vtObject.pdispVal && SUCCEEDED(hr)) hr = E_NOINTERFACE;
+		if (! V_DISPATCH(&vtObject) && SUCCEEDED(hr)) hr = E_NOINTERFACE;
 
 		(*ppDisp)->lpVtbl->Release(*ppDisp);
 
 		if (FAILED(hr)) break;
 
-		*ppDisp = vtObject.pdispVal;
+		*ppDisp = V_DISPATCH(&vtObject);
 
 		szTemp = szSeperator + 1;
 
@@ -515,7 +523,7 @@ static HRESULT InternalInvokeV(int invokeType, VARTYPE returnType, VARIANT * pvR
 		}
 
 		if (SUCCEEDED(hr) && pvResult != NULL &&
-	            pvResult->vt != returnType && returnType != VT_EMPTY)
+	            V_VT(pvResult) != returnType && returnType != VT_EMPTY)
 		{
 			hr = VariantChangeType(pvResult, pvResult, 16 , returnType);
 			if (FAILED(hr)) VariantClear(pvResult);
@@ -557,7 +565,7 @@ static HRESULT CreateArgumentArray(LPWSTR szMember, VARIANT * pArgs, BOOL * pbFr
 
 			szMember++;
 
-			hr = ExtractArgument(&pArgs[iArg], *szMember, &pbFreeList[iArg], marker);
+			hr = ExtractArgument(&pArgs[iArg], szMember, &pbFreeList[iArg], marker);
 
 			if (FAILED(hr)) break;
 		}
@@ -578,29 +586,170 @@ static HRESULT CreateArgumentArray(LPWSTR szMember, VARIANT * pArgs, BOOL * pbFr
 	return DH_EXIT(hr, szMember);
 }
 
-static HRESULT ExtractArgument(VARIANT * pvArg, WCHAR chIdentifier, BOOL * pbFreeArg, va_list * marker)
+static HRESULT ExtractArgument(VARIANT * pvArg, const WCHAR * chIdentifierPtr, BOOL * pbFreeArg, va_list * marker)
 {
 	HRESULT hr = NOERROR;
+	WCHAR chIdentifier = *chIdentifierPtr;
+	BOOL isRef = FALSE;
+	INT  size = 0;
 
 	*pbFreeArg = FALSE;
+
+	/* C++ -like "byref" modifier */
+	if (chIdentifier == L'&')
+	{
+		isRef = TRUE;
+		chIdentifier = *(++chIdentifierPtr);
+	}
+
+	/* scanf -like format modifier */
+	while(chIdentifier)
+	{
+		if (chIdentifier == L'h')
+			size--;
+		else if (chIdentifier == L'l')
+			size++;
+		else if (chIdentifier == L'L')
+			size=2;	// long-long is always 64bits
+		else break;
+
+		chIdentifier = *(++chIdentifierPtr);
+	}
 
 	if (chIdentifier == L'T') chIdentifier = (dh_g_bIsUnicodeMode ? L'S' : L's');
 
 	switch (chIdentifier)
 	{
 		case L'd':
-			V_VT(pvArg)  = VT_I4;
-			V_I4(pvArg)  = va_arg(*marker, LONG);
+			if (isRef)
+			{
+				switch(size)
+				{
+					case -2:
+						V_VT(pvArg)  = VT_I1 | VT_BYREF;
+//						V_I1REF(pvArg)  = va_arg(*marker, CHAR *);
+						break;
+					case -1:
+						V_VT(pvArg)  = VT_I2 | VT_BYREF;
+						V_I2REF(pvArg)  = va_arg(*marker, SHORT *);
+						break;
+					case 0:
+						/* WIN32/WIN64 is assumed : 32bit int (are there still any 16bit OLE in circulation ?!?) */
+					case 1:
+						/* WIN64 is LLP64 thus even long are always 32bits regardless of OS */
+						V_VT(pvArg)  = VT_I4 | VT_BYREF;
+						V_I4REF(pvArg)  = va_arg(*marker, LONG *);
+						break;
+					case 2:
+						V_VT(pvArg)  = VT_I8 | VT_BYREF;
+						V_I8REF(pvArg)  = va_arg(*marker, LONGLONG *);
+						break;
+					default:
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			} 
+			else 
+			{
+				if (size == 2)
+				{
+					/* special case for 64-bits integers */
+					V_VT(pvArg)  = VT_I8;
+					V_I8(pvArg)  = va_arg(*marker, LONGLONG);
+				}
+				else
+				{
+					/* all other are promoted to 32-bits integers when passed as arguments */
+					V_VT(pvArg)  = VT_I4;
+					V_I4(pvArg)  = va_arg(*marker, LONG);
+				}
+			}
 			break;
 
 		case L'u':
-			V_VT(pvArg)  = VT_UI4;
-			V_UI4(pvArg) = va_arg(*marker, ULONG);
+			if (isRef) {
+				switch(size)
+				{
+					case -2:
+						V_VT(pvArg)  = VT_UI1 | VT_BYREF;
+//						V_UI1REF(pvArg)  = va_arg(*marker, BYTE *);
+						break;
+					case -1:
+						V_VT(pvArg)  = VT_UI2 | VT_BYREF;
+						V_UI2REF(pvArg) = va_arg(*marker, USHORT *);
+						break;
+					case 0:
+						/* WIN32/WIN64 is assumed : 32bit int (are there still any 16bit OLE in circulation ?!?) */
+					case 1:
+						/* WIN64 is LLP64 thus even long are always 32bits regardless of OS */
+						V_VT(pvArg)  = VT_UI4 | VT_BYREF;
+						V_UI4REF(pvArg)  = va_arg(*marker, ULONG *);
+						break;
+					case 2:
+						V_VT(pvArg)  = VT_UI8 | VT_BYREF;
+						V_UI8REF(pvArg)  = va_arg(*marker, ULONGLONG *);
+						break;
+					default:
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			}
+			else
+			{
+				if (size == 2)
+				{
+					/* special case for 64-bits integers */
+					V_VT(pvArg)  = VT_UI8;
+					V_UI8(pvArg)  = va_arg(*marker, ULONGLONG);
+				}
+				else
+				{
+					/* all other are promoted to 32-bits integers when passed as arguments */
+					V_VT(pvArg)  = VT_UI4;
+					V_UI4(pvArg) = va_arg(*marker, ULONG);
+				}
+			}
 			break;
 
 		case L'e':
-			V_VT(pvArg)  = VT_R8;
-			V_R8(pvArg)  = va_arg(*marker, DOUBLE);
+			if (isRef)
+			{
+				switch(size)
+				{
+					case -1:
+					case 0:
+						/* Warning, we mimick SCANF default behaviour with efg being 32bits float by default */
+						V_VT(pvArg)  = VT_R4 | VT_BYREF;
+						V_R4REF(pvArg)  = va_arg(*marker, FLOAT *);
+						break;
+					case 1:
+						V_VT(pvArg)  = VT_R8 | VT_BYREF;
+						V_R8REF(pvArg)  = va_arg(*marker, DOUBLE *);
+						break;
+					default:
+						/* OLE32 doesn't support 128bits (default) & 80bits (387) long double floats */
+						hr = E_INVALIDARG;
+						DEBUG_NOTIFY_INVALID_IDENTIFIER(chIdentifier);
+						break;
+				}
+			}
+			else
+			{
+				if (size == 2)
+				{
+					/* long double floats take 80bits or 128bits and should be consumed accordingly */
+					V_VT(pvArg)  = VT_R8;
+					V_R8(pvArg)  = (DOUBLE) va_arg(*marker, long double);
+				}
+				else
+				{
+					/* float are auto-promoted to 64bit double float when passed as argument */
+					V_VT(pvArg)  = VT_R8;
+					V_R8(pvArg)  = va_arg(*marker, DOUBLE);
+				}
+			}
 			break;
 
 		case L'b':
@@ -721,10 +870,10 @@ HRESULT dhEnumBeginV(IEnumVARIANT ** ppEnum, IDispatch * pDisp, LPCOLESTR szMemb
 
 	if (FAILED(hr)) return DH_EXITEX(hr, TRUE, L"_NewEnum", szMember, &excep, 0);
 
-	if (vtResult.vt == VT_DISPATCH)
-		hr = vtResult.pdispVal->lpVtbl->QueryInterface(vtResult.pdispVal, &IID_IEnumVARIANT, (void **) ppEnum);
-	else if (vtResult.vt == VT_UNKNOWN)
-		hr = vtResult.punkVal->lpVtbl->QueryInterface(vtResult.punkVal, &IID_IEnumVARIANT, (void **) ppEnum);
+	if (V_VT(&vtResult) == VT_DISPATCH)
+		hr = V_DISPATCH(&vtResult)->lpVtbl->QueryInterface(V_DISPATCH(&vtResult), &IID_IEnumVARIANT, (void **) ppEnum);
+	else if (V_VT(&vtResult) == VT_UNKNOWN)
+		hr = V_UNKNOWN(&vtResult)->lpVtbl->QueryInterface(V_UNKNOWN(&vtResult), &IID_IEnumVARIANT, (void **) ppEnum);
 	else
 		hr = E_NOINTERFACE;
 
@@ -755,14 +904,14 @@ HRESULT dhEnumNextObject(IEnumVARIANT * pEnum, IDispatch ** ppDisp)
 
 	if (hr == S_OK)
 	{
-		if (vtResult.vt == VT_DISPATCH)
+		if (V_VT(&vtResult) == VT_DISPATCH)
 		{
-			*ppDisp = vtResult.pdispVal;
+			*ppDisp = V_DISPATCH(&vtResult);
 		}
 		else
 		{
 			hr = VariantChangeType(&vtResult, &vtResult, 0, VT_DISPATCH);
-			if (SUCCEEDED(hr)) *ppDisp = vtResult.pdispVal;
+			if (SUCCEEDED(hr)) *ppDisp = V_DISPATCH(&vtResult);
 			else VariantClear(&vtResult);
 		}
 	}
@@ -788,11 +937,11 @@ HRESULT dhEnumBegin(IEnumVARIANT ** ppEnum, IDispatch * pDisp, LPCOLESTR szMembe
 
 /* ----- convert.c ----- */
 
-static const LONGLONG FILE_TIME_ONE_DAY           = 864000000000;
+static const LONGLONG FILE_TIME_ONE_DAY           = 864000000000LL;
 
-static const LONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000;
+static const LONGLONG FILE_TIME_VARIANT_DAY0      = 94353120000000000LL;
 
-static const ULONGLONG FILE_TIME_VARIANT_OVERFLOW  = 2650467744000000000;
+static const ULONGLONG FILE_TIME_VARIANT_OVERFLOW  = 2650467744000000000ULL;
 
 static const DATE      VARIANT_FILE_TIME_DAY0      = -109205;
 
@@ -1173,7 +1322,7 @@ HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBu
 	{
 		if (!bFixedFont)
 		{
-			_snwprintf(szBuffer, cchBufferSize, L"Member:\t  %s\r\nFunction:\t  %s\t\t\r\nError In:\t  %s\r\nError:\t  %s\r\nCode:\t  %x\r\nSource:\t  %s",
+			_snwprintf(szBuffer, cchBufferSize, L"Member:\t  %ls\r\nFunction:\t  %ls\t\t\r\nError In:\t  %ls\r\nError:\t  %ls\r\nCode:\t  %x\r\nSource:\t  %ls",
 				pException->szCompleteMember,
 				pException->szInitialFunction, pException->szErrorFunction,
 				pException->szDescription, hr,
@@ -1181,13 +1330,12 @@ HRESULT dhFormatExceptionW(PDH_EXCEPTION pException, LPWSTR szBuffer, UINT cchBu
 		}
 		else
 		{
-			_snwprintf(szBuffer, cchBufferSize, L"Member:   %s\r\nFunction: %s\r\nError In: %s\r\nError:    %s\r\nCode:     %x\r\nSource:   %s",
+			_snwprintf(szBuffer, cchBufferSize, L"Member:   %ls\r\nFunction: %ls\r\nError In: %ls\r\nError:    %ls\r\nCode:     %x\r\nSource:   %ls",
 				pException->szCompleteMember,
 				pException->szInitialFunction, pException->szErrorFunction,
 				pException->szDescription, hr,
 				pException->szSource);
 		}
-
 		szBuffer[cchBufferSize - 1] = L'\0';
 	}
 

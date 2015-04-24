@@ -19,6 +19,7 @@
 #ifndef DISPHELPER_H_INCLUDED
 #define DISPHELPER_H_INCLUDED
 
+#include <ocidl.h>
 #include <objbase.h>
 #include <time.h>
 
@@ -547,11 +548,12 @@ inline std::ostream& operator<<(std::ostream& os, const CDhStringA& s)
 	return os << (s ? s : (char*) "(null)");
 }
 
+#ifdef _GLIBCXX_USE_WCHAR_T
 inline std::wostream& operator<<(std::wostream& os, const CDhStringW& s)
 {
 	return os << (s ? s : (wchar_t*) L"(null)");
 }
-
+#endif
 
 
 
