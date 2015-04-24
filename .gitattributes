@@ -1,0 +1,12 @@
+*	text=auto
+
+.gitattributes	text eol=lf
+*.bat	text
+.xls	-text
+
+*.c	text
+*.cpp	text
+*.h	text
+*.htm	text
+*.txt	text
+*.xml	text
