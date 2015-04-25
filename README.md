@@ -121,6 +121,14 @@ See examples in :
 * [arthur.cpp](https://gitlab.isb-sib.ch/itopolsk/captain-bol/blob/master/xenobol/src/arthur.cpp)
 * [analyst.cpp](https://gitlab.isb-sib.ch/itopolsk/captain-bol/blob/master/xenobol/src/analyst.cpp)
 
+## Limitations
+
+Currently, only the internal function [`ExtractArgument`](https://github.com/DrYak/disphelper/blob/master/single_file_source/disphelper.c#L589) which handles manipulation of method call parameters has been patched.
+
+The function [`dhGetValue`](https://github.com/DrYak/disphelper/blob/master/single_file_source/disphelper.c#L295) which handles retrieving the return value with the user friendly format string and pointer hasn't been patched yet, and thus doesn't handle the `l`,`ll`,etc. lenght specifier.
+
+It should be possible to replicate the work, but **beware** that currently, DispHelper API defines `%e` as a `double *` (like `printf` does), not as a `float *` (as both `scanf` and our patch does). Changing this behaviour can potentially cause legacy code breakage !!!
+
 ## BSTR
 
 This isn't part of the modification done on DispHelper, but might comme handy when handling OLE/COM objects :
